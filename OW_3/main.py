@@ -7,7 +7,6 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 from mpl_toolkits.mplot3d import Axes3D
 
-# Importujemy wszystkie potrzebne metody z methods.py
 from methods import (topsis, discrete_reference_set_method, UTAstar_discrete, 
                      continuous_reference_set_method, UTAstar_continuous, fuzzy_topsis)
 
@@ -38,31 +37,57 @@ class App:
         self.btn_create_ranking.pack(side=tk.LEFT, padx=5)
         
         # Ramka na tabelki
+        # Dodajemy ramkę z sekcjami o stałej szerokości
         frame_tables = tk.Frame(master)
-        frame_tables.pack(pady=10)
+        frame_tables.pack(pady=10, expand=True, fill='both')
         
-        # Tabela alternatyw
+        # Sekcja Alternatywy
         frame_alt = tk.LabelFrame(frame_tables, text="Alternatywy z kryteriami")
-        frame_alt.pack(side=tk.LEFT, padx=10)
+        frame_alt.pack(side=tk.LEFT, padx=10, expand=True, fill='both')
+        
+        # Ustawiamy stałą szerokość dla sekcji z alternatywami
+        frame_alt.config(width=400, height=200)
+        frame_alt.pack_propagate(False)
         
         self.tree_alt = ttk.Treeview(frame_alt, columns=["Nr","Nazwa","C1","C2","C3"], show="headings", height=8)
+
+        # Nagłówki
         self.tree_alt.heading("Nr", text="Nr")
         self.tree_alt.heading("Nazwa", text="Nazwa")
         self.tree_alt.heading("C1", text="Kryterium 1")
         self.tree_alt.heading("C2", text="Kryterium 2")
         self.tree_alt.heading("C3", text="Kryterium 3")
-        self.tree_alt.pack(padx=5, pady=5)
+
+        # Ustawienia kolumn
+        self.tree_alt.column("Nr", width=30, anchor='center')
+        self.tree_alt.column("Nazwa", width=70, anchor='w')
+        self.tree_alt.column("C1", width=70)
+        self.tree_alt.column("C2", width=70)
+        self.tree_alt.column("C3", width=70)
+
+        self.tree_alt.pack(padx=5, pady=5, expand=True, fill='both')
         
-        # Tabela klas
+        # Sekcja Klasy
         frame_cls = tk.LabelFrame(frame_tables, text="Klasy")
-        frame_cls.pack(side=tk.LEFT, padx=10)
-        
+        frame_cls.pack(side=tk.LEFT, padx=10, expand=True, fill='both')
+
+        # Stała szerokość dla sekcji z klasami
+        frame_cls.config(width=400, height=200)
+        frame_cls.pack_propagate(False)
+
         self.tree_cls = ttk.Treeview(frame_cls, columns=["Nr","x","y","z"], show="headings", height=8)
         self.tree_cls.heading("Nr", text="Nr klasy")
         self.tree_cls.heading("x", text="x")
         self.tree_cls.heading("y", text="y")
         self.tree_cls.heading("z", text="z")
-        self.tree_cls.pack(padx=5, pady=5)
+
+        # Ustawienie szerokości i wyrównania kolumn sekcji "Klasy"
+        self.tree_cls.column("Nr", width=60, anchor='center')   # Szerokość 60, wyśrodkowanie
+        self.tree_cls.column("x", width=80, anchor='center')    # Szerokość 80
+        self.tree_cls.column("y", width=80, anchor='center')    # Szerokość 80
+        self.tree_cls.column("z", width=80, anchor='center')    # Szerokość 80
+
+        self.tree_cls.pack(padx=5, pady=5, expand=True, fill='both')
         
         # Tabela rankingu
         frame_rank = tk.LabelFrame(master, text="Stworzony ranking")
@@ -116,20 +141,18 @@ class App:
             messagebox.showerror("Błąd", "Wybierz metodę!")
             return
         
-        # Konwersja przecinków na kropki jeśli istnieją
+        # Konwersja do float
         self.alternatives_df[["Kryterium 1","Kryterium 2","Kryterium 3"]] = self.alternatives_df[["Kryterium 1","Kryterium 2","Kryterium 3"]].replace(',', '.', regex=True).astype(float)
         self.classes_df[["x","y","z"]] = self.classes_df[["x","y","z"]].replace(',', '.', regex=True).astype(float)
         
         decision_matrix = self.alternatives_df[["Kryterium 1","Kryterium 2","Kryterium 3"]].values
-        directions = np.array([1,1,1])  # Maksymalizacja wszystkich
+        directions = np.array([1,1,1])  # Maksymalizacja
         weights = np.array([1/3, 1/3, 1/3])
         
-        # Punkty referencyjne a i b
         if len(self.classes_df) >= 2:
             a = self.classes_df.iloc[0][["x","y","z"]].values
             b = self.classes_df.iloc[1][["x","y","z"]].values
         else:
-            # Jeśli jest tylko 1 klasa, tworzymy sztuczne a i b
             a = np.min(decision_matrix, axis=0)
             b = np.max(decision_matrix, axis=0)
         
@@ -138,7 +161,7 @@ class App:
         elif method == "CRSM (dyskr.)":
             ranking, score = discrete_reference_set_method(decision_matrix, directions, a, b)
         elif method == "CRSM (ciąg.)":
-            messagebox.showinfo("Informacja", "CRSM ciągła wymaga zdefiniowania problemu ciągłego. Brak implementacji przykładu.")
+            messagebox.showinfo("Informacja", "CRSM ciągła wymaga problemu ciągłego.")
             return
         elif method == "UTA (dyskretna)":
             ref_point_neutral = (a+b)/2
@@ -147,10 +170,10 @@ class App:
             ranking = np.argsort(-np.sum(utility_values, axis=1))
             score = np.sum(utility_values, axis=1)
         elif method == "UTA (ciągła)":
-            messagebox.showinfo("Informacja", "UTA ciągła wymaga problemu ciągłego. Brak implementacji przykładu.")
+            messagebox.showinfo("Informacja", "UTA ciągła wymaga problemu ciągłego.")
             return
         elif method == "Fuzzy TOPSIS":
-            messagebox.showinfo("Informacja", "Fuzzy TOPSIS wymaga danych rozmytych. Brak implementacji przykładu.")
+            messagebox.showinfo("Informacja", "Fuzzy TOPSIS wymaga danych rozmytych.")
             return
         else:
             messagebox.showerror("Błąd", "Metoda nieobsługiwana.")
@@ -167,11 +190,15 @@ class App:
         # Rysowanie wykresu
         self.figure.clear()
         num_criteria = decision_matrix.shape[1]
+        best_idx = ranking[0]  # najlepszy wynik
+        
         if num_criteria == 2:
             ax = self.figure.add_subplot(111)
             x = decision_matrix[:,0]
             y = decision_matrix[:,1]
             scatter = ax.scatter(x, y, c=score, cmap='viridis', s=50)
+            # Obramówka dla najlepszego
+            ax.scatter(x[best_idx], y[best_idx], s=200, facecolors='none', edgecolors='r', linewidth=2)
             ax.set_xlabel("Kryterium 1")
             ax.set_ylabel("Kryterium 2")
             self.figure.colorbar(scatter, ax=ax, label="Wynik")
@@ -181,6 +208,8 @@ class App:
             y = decision_matrix[:,1]
             z = decision_matrix[:,2]
             scatter = ax.scatter(x, y, z, c=score, cmap='viridis', s=50)
+            # Obramówka dla najlepszego
+            ax.scatter(x[best_idx], y[best_idx], z[best_idx], s=200, facecolors='none', edgecolors='r', linewidth=2)
             ax.set_xlabel("Kryterium 1")
             ax.set_ylabel("Kryterium 2")
             ax.set_zlabel("Kryterium 3")
@@ -190,6 +219,8 @@ class App:
             x = decision_matrix[:,0]
             y = decision_matrix[:,1]
             scatter = ax.scatter(x, y, c=score, cmap='viridis', s=50)
+            # Obramówka dla najlepszego
+            ax.scatter(x[best_idx], y[best_idx], s=200, facecolors='none', edgecolors='r', linewidth=2)
             ax.set_xlabel("Kryterium 1")
             ax.set_ylabel("Kryterium 2")
             self.figure.colorbar(scatter, ax=ax, label="Wynik")
@@ -197,6 +228,7 @@ class App:
         self.canvas.draw()
         
         messagebox.showinfo("Informacja", "Ranking utworzony!")
+
 
 if __name__ == "__main__":
     root = tk.Tk()
