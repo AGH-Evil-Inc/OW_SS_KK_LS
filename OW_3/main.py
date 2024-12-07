@@ -5,13 +5,11 @@ import numpy as np
 import matplotlib
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
-from mpl_toolkits.mplot3d import Axes3D  # jeśli potrzebujemy wykres 3D
-import os
+from mpl_toolkits.mplot3d import Axes3D
 
-# Import z tego samego folderu
-from methods import topsis  # na przykład importujemy jedną z metod
-# W razie potrzeby importuj inne metody z methods:
-# from methods import continuous_reference_set_method, discrete_reference_set_method, UTAstar_discrete, UTAstar_continuous, fuzzy_topsis
+# Importujemy wszystkie potrzebne metody z methods.py
+from methods import (topsis, discrete_reference_set_method, UTAstar_discrete, 
+                     continuous_reference_set_method, UTAstar_continuous, fuzzy_topsis)
 
 class App:
     def __init__(self, master):
@@ -31,7 +29,8 @@ class App:
         
         # Combobox do wyboru metody
         self.method_var = tk.StringVar()
-        self.method_box = ttk.Combobox(frame_top, textvariable=self.method_var, values=["TOPSIS", "CRSM", "UTA", "Fuzzy TOPSIS"])
+        self.method_box = ttk.Combobox(frame_top, textvariable=self.method_var, 
+                                       values=["TOPSIS", "CRSM (dyskr.)", "CRSM (ciąg.)", "UTA (dyskretna)", "UTA (ciągła)", "Fuzzy TOPSIS"])
         self.method_box.set("Wybierz metodę...")
         self.method_box.pack(side=tk.LEFT, padx=5)
         
@@ -84,7 +83,6 @@ class App:
         self.plot_widget.pack()
         
     def load_data(self):
-        # Wczytujemy dane z dwóch plików: alternatyw i klas (można zmodyfikować wg potrzeb)
         alt_file = filedialog.askopenfilename(title="Wybierz plik XLSX z alternatywami", filetypes=[("Excel files", "*.xlsx")])
         if not alt_file:
             return
@@ -95,6 +93,7 @@ class App:
         self.alternatives_df = pd.read_excel(alt_file, engine='openpyxl')
         self.classes_df = pd.read_excel(cls_file, engine='openpyxl')
         
+        # Wyświetlenie w tabelkach
         for i in self.tree_alt.get_children():
             self.tree_alt.delete(i)
         for i, row in self.alternatives_df.iterrows():
@@ -117,18 +116,44 @@ class App:
             messagebox.showerror("Błąd", "Wybierz metodę!")
             return
         
+        # Konwersja przecinków na kropki jeśli istnieją
+        self.alternatives_df[["Kryterium 1","Kryterium 2","Kryterium 3"]] = self.alternatives_df[["Kryterium 1","Kryterium 2","Kryterium 3"]].replace(',', '.', regex=True).astype(float)
+        self.classes_df[["x","y","z"]] = self.classes_df[["x","y","z"]].replace(',', '.', regex=True).astype(float)
+        
         decision_matrix = self.alternatives_df[["Kryterium 1","Kryterium 2","Kryterium 3"]].values
-        # Przykład: zakładamy wszystkie kryteria do maksymalizacji
-        directions = np.array([1,1,1])  
-        # Równe wagi
+        directions = np.array([1,1,1])  # Maksymalizacja wszystkich
         weights = np.array([1/3, 1/3, 1/3])
+        
+        # Punkty referencyjne a i b
+        if len(self.classes_df) >= 2:
+            a = self.classes_df.iloc[0][["x","y","z"]].values
+            b = self.classes_df.iloc[1][["x","y","z"]].values
+        else:
+            # Jeśli jest tylko 1 klasa, tworzymy sztuczne a i b
+            a = np.min(decision_matrix, axis=0)
+            b = np.max(decision_matrix, axis=0)
         
         if method == "TOPSIS":
             ranking, score = topsis(decision_matrix, weights, directions)
+        elif method == "CRSM (dyskr.)":
+            ranking, score = discrete_reference_set_method(decision_matrix, directions, a, b)
+        elif method == "CRSM (ciąg.)":
+            messagebox.showinfo("Informacja", "CRSM ciągła wymaga zdefiniowania problemu ciągłego. Brak implementacji przykładu.")
+            return
+        elif method == "UTA (dyskretna)":
+            ref_point_neutral = (a+b)/2
+            reference_points = np.array([a, b, ref_point_neutral])
+            best_idx, utility_values = UTAstar_discrete(decision_matrix, reference_points, lambda_param=1)
+            ranking = np.argsort(-np.sum(utility_values, axis=1))
+            score = np.sum(utility_values, axis=1)
+        elif method == "UTA (ciągła)":
+            messagebox.showinfo("Informacja", "UTA ciągła wymaga problemu ciągłego. Brak implementacji przykładu.")
+            return
+        elif method == "Fuzzy TOPSIS":
+            messagebox.showinfo("Informacja", "Fuzzy TOPSIS wymaga danych rozmytych. Brak implementacji przykładu.")
+            return
         else:
-            # W tym przykładzie obsługujemy tylko TOPSIS. 
-            # Można rozszerzyć o if method == "CRSM": ... itd.
-            messagebox.showwarning("Uwaga", "Inne metody nie są jeszcze zaimplementowane w GUI.")
+            messagebox.showerror("Błąd", "Metoda nieobsługiwana.")
             return
         
         # Wyświetlenie rankingu
@@ -161,7 +186,6 @@ class App:
             ax.set_zlabel("Kryterium 3")
             self.figure.colorbar(scatter, ax=ax, label="Wynik")
         else:
-            # Jeśli jest inna liczba kryteriów, np. wyświetlamy tylko 2D z pierwszych 2 kryteriów
             ax = self.figure.add_subplot(111)
             x = decision_matrix[:,0]
             y = decision_matrix[:,1]
