@@ -94,7 +94,7 @@ def discrete_reference_set_method(alternatives, directions, a, b):
 #         similarity_to_ideal = distance_to_fnis / (distance_to_fpis + distance_to_fnis)
 #         similarity_to_ideal[np.isnan(similarity_to_ideal)] = 0
 #     return similarity_to_ideal
-def fuzzy_topsis(objective_functions, X, weights, criteria_types, delta=0.1):
+def fuzzy_topsis(decision_matrix, weights, criteria_types, delta=0.1):
     """
     Fuzzy Topsis w wersji ciągłej. 
     Przyjmuje:
