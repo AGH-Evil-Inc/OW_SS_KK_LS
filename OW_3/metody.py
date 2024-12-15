@@ -3,65 +3,60 @@ from scipy.optimize import minimize
 from scipy.interpolate import interp1d
 
 
-def continuous_reference_set_method(alternatives, directions, a, b, n_extra=200):
+# ------------------------------- RSM ------------------------------
+def continuous_reference_set_method(alternatives, criteria_types, a, b, n_extra=200):
     rng = np.random.default_rng()
     M = alternatives.shape[1]
-    # Generujemy dodatkowe punkty w przestrzeni [a,b]
     extra_points = np.zeros((n_extra, M))
     for i in range(M):
         low = min(a[i], b[i])
         high = max(a[i], b[i])
         extra_points[:, i] = rng.uniform(low, high, n_extra)
-    # Łączymy oryginalne alternatywy z nowo wygenerowanymi punktami
     all_points = np.vstack([alternatives, extra_points])
-    # Funkcja normalizująca z uwzględnieniem kierunku optymalizacji
-    def normalize(points, a, b, directions):
+    def normalize(points, a, b, criteria_types):
         norm_alt = np.zeros_like(points, dtype=float)
-        for i in range(len(directions)):
-            if directions[i] == -1:  # Minimalizacja
+        for i in range(len(criteria_types)):
+            if criteria_types[i] == -1:  # Minimalizacja
                 norm_alt[:, i] = (points[:, i] - a[i]) / (b[i] - a[i])
             else:  # Maksymalizacja
                 norm_alt[:, i] = (b[i] - points[:, i]) / (b[i] - a[i])
         return norm_alt
-    # Funkcja scoringowa
-    def scoring_function(points, a, b, directions):
-        norm_alt = normalize(points, a, b, directions)
+    def scoring_function(points, a, b, criteria_types):
+        norm_alt = normalize(points, a, b, criteria_types)
         distance_to_a = np.linalg.norm(norm_alt - np.zeros((len(points), len(a))), axis=1)
         distance_to_b = np.linalg.norm(norm_alt - np.ones((len(points), len(a))), axis=1)
         C = distance_to_b / (distance_to_a + distance_to_b)
         return C
-    scores = scoring_function(all_points, a, b, directions)
+    scores = scoring_function(all_points, a, b, criteria_types)
     ranking = np.argsort(-scores)  # sortujemy malejąco po scores
     return ranking, scores, all_points
 
 
-
-def discrete_reference_set_method(alternatives, directions, a, b):
-    def normalize(alternatives, a, b, directions):
+def discrete_reference_set_method(alternatives, criteria_types, a, b):
+    def normalize(alternatives, a, b, criteria_types):
         norm_alt = np.zeros_like(alternatives, dtype=float)
-        for i in range(len(directions)):
-            if directions[i] == -1:
+        for i in range(len(criteria_types)):
+            if criteria_types[i] == -1:
                 norm_alt[:, i] = (alternatives[:, i] - a[i]) / (b[i] - a[i])
             else:
                 norm_alt[:, i] = (b[i] - alternatives[:, i]) / (b[i] - a[i])
         return norm_alt
-    def scoring_function(alternatives, a, b, directions):
-        norm_alt = normalize(alternatives, a, b, directions)
+    def scoring_function(alternatives, a, b, criteria_types):
+        norm_alt = normalize(alternatives, a, b, criteria_types)
         distance_to_a = np.linalg.norm(norm_alt - np.zeros((len(alternatives), len(a))), axis=1)
         distance_to_b = np.linalg.norm(norm_alt - np.ones((len(alternatives), len(a))), axis=1)
         C = distance_to_b / (distance_to_a + distance_to_b)
         return C
-    scores = scoring_function(alternatives, a, b, directions)
+    scores = scoring_function(alternatives, a, b, criteria_types)
     ranking = np.argsort(-scores)
     return ranking, scores
 
 
-def fuzzy_topsis(decision_matrix, weights, criteria_type):
-    decision_matrix = np.array(decision_matrix)
-    # Zakładamy, że decision_matrix jest w formacie m x n x 3
+# ------------------------------- TOPSIS ------------------------------
+def fuzzy_topsis(decision_matrix, weights, criteria_types):
     norm_matrix = np.zeros_like(decision_matrix, dtype=float)
     for j in range(decision_matrix.shape[1]):
-        if criteria_type[j] == 'max':
+        if criteria_types[j] == 1:
             max_value = np.max(decision_matrix[:, j, 2])
             norm_matrix[:, j, 0] = decision_matrix[:, j, 0] / max_value
             norm_matrix[:, j, 1] = decision_matrix[:, j, 1] / max_value
@@ -79,7 +74,7 @@ def fuzzy_topsis(decision_matrix, weights, criteria_type):
     fpis = np.zeros((decision_matrix.shape[1], 3), dtype=float)
     fnis = np.zeros((decision_matrix.shape[1], 3), dtype=float)
     for j in range(weighted_matrix.shape[1]):
-        if criteria_type[j] == 'max':
+        if criteria_types[j] == 1:
             fpis[j] = np.max(weighted_matrix[:, j, :], axis=0)
             fnis[j] = np.min(weighted_matrix[:, j, :], axis=0)
         else:
@@ -90,15 +85,15 @@ def fuzzy_topsis(decision_matrix, weights, criteria_type):
     with np.errstate(divide='ignore', invalid='ignore'):
         similarity_to_ideal = distance_to_fnis / (distance_to_fpis + distance_to_fnis)
         similarity_to_ideal[np.isnan(similarity_to_ideal)] = 0
-    return similarity_to_ideal
+    ranking = np.argsort(similarity_to_ideal)[::-1]
+    return similarity_to_ideal, ranking
 
 
-def topsis(decision_matrix, weights, criteria):
-    decision_matrix = np.array(decision_matrix)
+def topsis(decision_matrix, weights, criteria_types):
     norm_matrix = decision_matrix / np.sqrt((decision_matrix ** 2).sum(axis=0))
     weighted_matrix = norm_matrix * weights
-    ideal_best = np.max(weighted_matrix, axis=0) * (criteria == 1) + np.min(weighted_matrix, axis=0) * (criteria == -1)
-    ideal_worst = np.min(weighted_matrix, axis=0) * (criteria == 1) + np.max(weighted_matrix, axis=0) * (criteria == -1)
+    ideal_best = np.where(criteria_types == 1, np.max(weighted_matrix, axis=0), np.min(weighted_matrix, axis=0))
+    ideal_worst = np.where(criteria_types == 1, np.min(weighted_matrix, axis=0), np.max(weighted_matrix, axis=0))
     dist_to_ideal = np.sqrt(((weighted_matrix - ideal_best) ** 2).sum(axis=1))
     dist_to_worst = np.sqrt(((weighted_matrix - ideal_worst) ** 2).sum(axis=1))
     score = dist_to_worst / (dist_to_ideal + dist_to_worst)
@@ -106,7 +101,8 @@ def topsis(decision_matrix, weights, criteria):
     return ranking, score
 
 
-# Funkcja do wyznaczania funkcji użyteczności dla wersji ciągłej
+#------------------------------------- UTA ------------------------------------ 
+
 def UTA_function_continuous(values, reference_points, lambda_param=1, use_polynomial=False):
     """
     Aproksymuje funkcje użyteczności dla wersji ciągłej.
@@ -145,7 +141,6 @@ def UTA_function_continuous(values, reference_points, lambda_param=1, use_polyno
         utility_values.append(alternative_utility)
 
     return np.array(utility_values)
-
 
 # Funkcja optymalizacji w wersji ciągłej
 def UTAstar_continuous(values, reference_points, lambda_param=1, use_polynomial=False):
