@@ -1,12 +1,12 @@
 import tkinter as tk
-from tkinter import filedialog, messagebox
+from tkinter import filedialog, messagebox, ttk
 import pandas as pd
 import numpy as np
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
-import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import metody  # Import your methods module
+
 
 class ModernGUI:
     def __init__(self, root):
@@ -15,6 +15,7 @@ class ModernGUI:
         self.file_path = None
         self.sheet1_data = None
         self.sheet2_data = None
+        self.canvas = None  # Canvas for the visualization
 
         self.create_widgets()
 
@@ -62,15 +63,23 @@ class ModernGUI:
         self.sheet2_text = tk.Text(data_frame, height=5, width=80, wrap="none")
         self.sheet2_text.pack()
 
-        # Result display
-        result_frame = tk.Frame(left_frame, padx=10, pady=10)
-        result_frame.pack(fill="both", expand=True)
+        # Tabela rankingu
+        frame_rank = tk.LabelFrame(left_frame, text="Stworzony ranking", padx=10, pady=10)
+        frame_rank.pack(fill="both", expand=True)
 
-        tk.Button(result_frame, text="Run Optimization", command=self.run_optimization).pack()
+        # Treeview dla wyników
+        self.tree_rank = ttk.Treeview(frame_rank, columns=["Nr","Nr Punkt", "Punkt", "Wynik"], show="headings", height=8)
+        self.tree_rank.heading("Nr", text="Ranking")
+        self.tree_rank.heading("Nr Punkt", text="Nr Punktu")
+        self.tree_rank.heading("Punkt", text="Punkt Alternatywy")
+        self.tree_rank.heading("Wynik", text="Wynik")
+        self.tree_rank.pack(fill="both", expand=True, padx=5, pady=5)
 
-        tk.Label(result_frame, text="Results:").pack()
-        self.result_text = tk.Text(result_frame, height=10, width=80, wrap="none")
-        self.result_text.pack()
+        # Przyciski sterujące
+        button_frame = tk.Frame(left_frame, padx=10, pady=10)
+        button_frame.pack(fill="x")
+
+        tk.Button(button_frame, text="Run Optimization", command=self.run_optimization).pack(side="left", padx=5)
 
     def load_file(self):
         self.file_path = filedialog.askopenfilename(title="Select Excel File", filetypes=[("Excel files", "*.xlsx")])
@@ -101,83 +110,103 @@ class ModernGUI:
 
         method = self.method_var.get()
 
-        if method == "Fuzzy Topsis":
-            messagebox.showinfo("Info", "Fuzzy Topsis method is not yet implemented.")
-            return
 
-        try:
-            if method == "RSM - ciągła":
-                # Run RSM continuous optimization (placeholder)
-                ranking, scores, _ = metody.continuous_reference_set_method(
-                    self.sheet1_data.values, [1] * self.sheet1_data.shape[1],
-                    self.sheet1_data.min().values, self.sheet1_data.max().values
-                )
+        alternatives = np.array(self.sheet1_data.iloc[:, 1:].values)
+        typ_row = self.sheet2_data.loc[self.sheet2_data['Unnamed: 0'] == 'typ'].iloc[0, 1:]  # Pomijamy kolumnę 'Unnamed: 0'
+        waga_row = self.sheet2_data.loc[self.sheet2_data['Unnamed: 0'] == 'waga'].iloc[0, 1:]  # Pomijamy kolumnę 'Unnamed: 0'
+        criteria_types = np.where(typ_row == 'max', 1, -1)
+        a = []
+        b = []
+        for col in typ_row.index:
+            if typ_row[col] == 'min':
+                a.append(self.sheet1_data[col].min())  # Minimalna wartość w kolumnie
+                b.append(self.sheet1_data[col].max())  # Maksymalna wartość w kolumnie
+            elif typ_row[col] == 'max':
+                a.append(self.sheet1_data[col].max())  # Maksymalna wartość w kolumnie
+                b.append(self.sheet1_data[col].min())  # Minimalna wartość w kolumnie
+        a = np.array(a)
+        b = np.array(b)
 
-            elif method == "RSM - dyskretna":
-                # Run RSM discrete optimization (placeholder)
-                ranking, scores = metody.discrete_reference_set_method(
-                    self.sheet1_data.values, [1] * self.sheet1_data.shape[1],
-                    self.sheet1_data.min().values, self.sheet1_data.max().values
-                )
+        # try:
+        if method == "RSM - ciągła":
+            ranking, scores, all_points = metody.continuous_reference_set_method(
+                alternatives, criteria_types, a, b)
+            alternatives = all_points
 
-            elif method == "Topsis":
-                # Run TOPSIS optimization (placeholder)
-                ranking, scores = metody.topsis(
-                    self.sheet1_data.values, [1] * self.sheet1_data.shape[1], [1] * self.sheet1_data.shape[1]
-                )
+        elif method == "RSM - dyskretna":
+            ranking, scores = metody.discrete_reference_set_method(
+                alternatives, criteria_types, a, b)
 
-            elif method == "UTA - dyskretna":
-                # Generate reference points and run UTA discrete (placeholder)
-                ref_points = np.vstack([
-                    self.sheet1_data.min().values,
-                    self.sheet1_data.median().values,
-                    self.sheet1_data.max().values
-                ])
+        elif method == "Topsis":
+            decision_matrix = alternatives
+            weights = list(map(float, waga_row.values))
+            ranking, scores = metody.topsis(
+                alternatives, weights, criteria_types)
 
-                best_idx, _ = metody.UTAstar_discrete(
-                    self.sheet1_data.values, ref_points
-                )
-                ranking = [best_idx]
+        elif method == "Fuzzy Topsis":
+            def prepare_matrix_for_fuzzy_topsis(alternatives_vector, lambda_param=1):
+                n, m = alternatives_vector.shape
+                fuzzy_matrix = np.zeros((n, m, 3))
+                for i in range(n):
+                    for j in range(m):
+                        fuzzy_value = (alternatives_vector[i, j] - lambda_param, alternatives_vector[i, j], alternatives_vector[i, j] + lambda_param)
+                        fuzzy_matrix[i, j] = fuzzy_value
+                return fuzzy_matrix
+            weights = list(map(float, waga_row.values))
+            temp_alternatives = prepare_matrix_for_fuzzy_topsis(alternatives, 1.5)
+            print(temp_alternatives)
+            scores, ranking = metody.fuzzy_topsis(temp_alternatives, weights, criteria_types)
 
-            elif method == "UTA - ciągła":
-                # Generate reference points and run UTA continuous (placeholder)
-                ref_points = np.vstack([
-                    self.sheet1_data.min().values,
-                    self.sheet1_data.median().values,
-                    self.sheet1_data.max().values
-                ])
+        elif method == "UTA - dyskretna":
+            values = alternatives
+            median = np.array(self.sheet1_data.iloc[:, 1:].median().values)
+            reference_points = np.array([b, median, a])
+            _, _, scores = metody.UTAstar_discrete(
+                values, reference_points)
+            # print(f"uta_disc: {ranking}, {scores}")
+            ranking = np.argsort(scores)[::-1]
+            alternatives = values
+            # scores = [sum(scores)]
+            # ranking = [ranking]
+        
+        elif method == "UTA - ciągła":
+            values = alternatives
+            median = np.array(self.sheet1_data.iloc[:, 1:].median().values)
+            reference_points = np.array([b, median, a])
+            ranking, sum_scores,  scores = metody.UTAstar_continuous(
+                values, reference_points)
+            print(f"uta_cont: {ranking}, {scores}")
+            alternatives = [alternatives[ranking]]
+            scores = [sum_scores]
+            ranking = [ranking]
 
-                best_solution, _, _ = metody.UTAstar_continuous(
-                    self.sheet1_data.values, ref_points
-                )
-                ranking = [best_solution]
+        else:
+            raise NotImplementedError("Method not implemented.")
 
-            else:
-                raise NotImplementedError("Method not implemented.")
+        # Wyświetlanie wyników w tabeli
+        self.display_results(ranking, scores, alternatives)
 
-            # Display results
-            self.result_text.delete("1.0", tk.END)
-            result_df = pd.DataFrame({
-                "miejsce": list(range(1, len(ranking) + 1)),
-                "Id": ranking,
-                "punkt": [self.sheet1_data.iloc[rank].values.tolist() for rank in ranking],
-                "wynik": [scores[rank] for rank in ranking]
-            })
-            from pandastable import Table, TableModel
-            table_frame = tk.Frame(self.visualization_frame)
-            table_frame.pack(side="left", fill="both", expand=True)
-            pt = Table(table_frame, dataframe=result_df, showstatusbar=True)
-            pt.show()
+        # Wyświetlanie wykresu
+        self.visualize(ranking)
 
-            # Generate visualization
-            self.visualize(ranking)
+        # except Exception as e:
+        #     messagebox.showerror("Error", f"Optimization failed: {e}")
 
-        except Exception as e:
-            messagebox.showerror("Error", f"Optimization failed: {e}")
+    def display_results(self, ranking, scores, points):
+        # Czyszczenie poprzednich wyników
+        for i in self.tree_rank.get_children():
+            self.tree_rank.delete(i)
+
+        # Dodawanie wyników do tabeli
+        for idx, (r, s, point) in enumerate(zip(ranking, scores, points)):
+            punkt = ', '.join(map(str, point))
+            nr = ', '.join(map(str, [r]))
+            self.tree_rank.insert("", "end", values=[idx + 1, nr , points[r], scores[r]])
 
     def visualize(self, ranking):
-        for widget in self.visualization_frame.winfo_children():
-            widget.destroy()
+        # Usuwanie poprzednich wykresów
+        if self.canvas:
+            self.canvas.get_tk_widget().destroy()
 
         fig = Figure(figsize=(6, 4))
 
@@ -191,23 +220,18 @@ class ModernGUI:
 
         elif self.sheet1_data.shape[1] == 3:  # 3D Visualization
             ax = fig.add_subplot(111, projection='3d')
-            ax.scatter(self.sheet1_data.iloc[:, 0], self.sheet1_data.iloc[:, 1], self.sheet1_data.iloc[:, 2], label="Alternatives")
+            ax.scatter(self.sheet1_data.iloc[:, 0], self.sheet1_data.iloc[:, 1], self.sheet1_data.iloc[:, 2],
+                       label="Alternatives")
             best = self.sheet1_data.iloc[ranking[0]]
             ax.scatter(best.iloc[0], best.iloc[1], best.iloc[2], color="red", label="Best Solution")
             ax.set_title("3D Visualization")
             ax.legend()
 
-        else:  # Higher dimensions
-            ax = fig.add_subplot(111, projection='3d')
-            ax.scatter(self.sheet1_data.iloc[:, 0], self.sheet1_data.iloc[:, 1], self.sheet1_data.iloc[:, 2], label="Alternatives")
-            best = self.sheet1_data.iloc[ranking[0]]
-            ax.scatter(best[0], best[1], best[2], color="red", label="Best Solution")
-            ax.set_title("3D Visualization (First 3 Criteria)")
-            ax.legend()
-
         canvas = FigureCanvasTkAgg(fig, master=self.visualization_frame)
         canvas.draw()
-        canvas.get_tk_widget().pack(side="right", fill="both", expand=True)
+        canvas.get_tk_widget().pack(fill="both", expand=True)
+        self.canvas = canvas
+
 
 if __name__ == "__main__":
     root = tk.Tk()

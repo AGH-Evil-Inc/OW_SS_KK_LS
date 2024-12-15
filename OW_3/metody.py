@@ -4,7 +4,7 @@ from scipy.interpolate import interp1d
 
 
 # ------------------------------- RSM ------------------------------
-def continuous_reference_set_method(alternatives, criteria_types, a, b, n_extra=200):
+def continuous_reference_set_method(alternatives, criteria_types, a, b, n_extra=10):
     rng = np.random.default_rng()
     M = alternatives.shape[1]
     extra_points = np.zeros((n_extra, M))
@@ -221,6 +221,6 @@ def UTAstar_discrete(values, reference_points, lambda_param=1):
     utility_values = UTA_function_discrete(values, reference_points, lambda_param)
     
     # Wybór rozwiązania kompromisowego - wybieramy alternatywę z maksymalną sumą użyteczności
-    summed_utility = np.sum(utility_values, axis=1)
-    best_solution_idx = np.argmax(summed_utility)  # Wybieramy alternatywę z największą sumą funkcji użyteczności
-    return best_solution_idx, utility_values
+    ranking_values = np.sum(utility_values, axis=1)
+    best_solution_idx = np.argmax(ranking_values)  # Wybieramy alternatywę z największą sumą funkcji użyteczności
+    return best_solution_idx, utility_values, ranking_values
