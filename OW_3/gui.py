@@ -160,10 +160,10 @@ class ModernGUI:
             result_df = pd.DataFrame({
                 "miejsce": list(range(1, len(ranking) + 1)),
                 "Id": ranking,
-                "punkt": [self.sheet1_data.iloc[rank].tolist() for rank in ranking],
+                "punkt": [self.sheet1_data.iloc[rank].values.tolist() for rank in ranking],
                 "wynik": [scores[rank] for rank in ranking]
             })
-            from pandastable import Table
+            from pandastable import Table, TableModel
             table_frame = tk.Frame(self.visualization_frame)
             table_frame.pack(side="left", fill="both", expand=True)
             pt = Table(table_frame, dataframe=result_df, showstatusbar=True)
