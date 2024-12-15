@@ -173,7 +173,7 @@ class ModernGUI:
             values = alternatives
             median = np.array(self.sheet1_data.iloc[:, 1:].median().values)
             reference_points = np.array([b, median, a])
-            ranking, sum_scores,  scores = metody.UTAstar_continuous(
+            best_sol, best_sol_score, scores, _ = metody.UTAstar_continuous(
                 values, reference_points)
             print(f"uta_cont: {ranking}, {scores}")
             alternatives = [alternatives[ranking]]
