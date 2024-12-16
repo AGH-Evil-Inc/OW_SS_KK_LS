@@ -163,11 +163,8 @@ class ModernGUI:
             reference_points = np.array([b, median, a])
             _, _, scores = metody.UTAstar_discrete(
                 values, reference_points)
-            # print(f"uta_disc: {ranking}, {scores}")
             ranking = np.argsort(scores)[::-1]
             alternatives = values
-            # scores = [sum(scores)]
-            # ranking = [ranking]
         
         elif method == "UTA - ciągła":
             values = alternatives
@@ -175,10 +172,9 @@ class ModernGUI:
             reference_points = np.array([b, median, a])
             best_sol, best_sol_score, scores, _ = metody.UTAstar_continuous(
                 values, reference_points)
-            print(f"uta_cont: {ranking}, {scores}")
-            alternatives = [alternatives[ranking]]
-            scores = [sum_scores]
-            ranking = [ranking]
+            alternatives = np.append(alternatives, [best_sol], axis=0)
+            scores = np.append(-scores, best_sol_score)
+            ranking = np.argsort(scores)[::-1]
 
         else:
             raise NotImplementedError("Method not implemented.")
@@ -187,7 +183,7 @@ class ModernGUI:
         self.display_results(ranking, scores, alternatives)
 
         # Wyświetlanie wykresu
-        self.visualize(ranking)
+        self.visualize(ranking, scores, alternatives)
 
         # except Exception as e:
         #     messagebox.showerror("Error", f"Optimization failed: {e}")
@@ -203,34 +199,34 @@ class ModernGUI:
             nr = ', '.join(map(str, [r]))
             self.tree_rank.insert("", "end", values=[idx + 1, nr , points[r], scores[r]])
 
-    def visualize(self, ranking):
-        # Usuwanie poprzednich wykresów
-        if self.canvas:
-            self.canvas.get_tk_widget().destroy()
+    # def visualize(self, ranking):
+    #     # Usuwanie poprzednich wykresów
+    #     if self.canvas:
+    #         self.canvas.get_tk_widget().destroy()
 
-        fig = Figure(figsize=(6, 4))
+    #     fig = Figure(figsize=(6, 4))
 
-        if self.sheet1_data.shape[1] == 2:  # 2D Visualization
-            ax = fig.add_subplot(111)
-            ax.scatter(self.sheet1_data.iloc[:, 0], self.sheet1_data.iloc[:, 1], label="Alternatives")
-            best = self.sheet1_data.iloc[ranking[0]]
-            ax.scatter(best[0], best[1], color="red", label="Best Solution")
-            ax.set_title("2D Visualization")
-            ax.legend()
+    #     if self.sheet1_data.shape[1] == 2:  # 2D Visualization
+    #         ax = fig.add_subplot(111)
+    #         ax.scatter(self.sheet1_data.iloc[:, 0], self.sheet1_data.iloc[:, 1], label="Alternatives")
+    #         best = self.sheet1_data.iloc[ranking[0]]
+    #         ax.scatter(best[0], best[1], color="red", label="Best Solution")
+    #         ax.set_title("2D Visualization")
+    #         ax.legend()
 
-        elif self.sheet1_data.shape[1] == 3:  # 3D Visualization
-            ax = fig.add_subplot(111, projection='3d')
-            ax.scatter(self.sheet1_data.iloc[:, 0], self.sheet1_data.iloc[:, 1], self.sheet1_data.iloc[:, 2],
-                       label="Alternatives")
-            best = self.sheet1_data.iloc[ranking[0]]
-            ax.scatter(best.iloc[0], best.iloc[1], best.iloc[2], color="red", label="Best Solution")
-            ax.set_title("3D Visualization")
-            ax.legend()
+    #     elif self.sheet1_data.shape[1] == 3:  # 3D Visualization
+    #         ax = fig.add_subplot(111, projection='3d')
+    #         ax.scatter(self.sheet1_data.iloc[:, 0], self.sheet1_data.iloc[:, 1], self.sheet1_data.iloc[:, 2],
+    #                    label="Alternatives")
+    #         best = self.sheet1_data.iloc[ranking[0]]
+    #         ax.scatter(best.iloc[0], best.iloc[1], best.iloc[2], color="red", label="Best Solution")
+    #         ax.set_title("3D Visualization")
+    #         ax.legend()
 
-        canvas = FigureCanvasTkAgg(fig, master=self.visualization_frame)
-        canvas.draw()
-        canvas.get_tk_widget().pack(fill="both", expand=True)
-        self.canvas = canvas
+    #     canvas = FigureCanvasTkAgg(fig, master=self.visualization_frame)
+    #     canvas.draw()
+    #     canvas.get_tk_widget().pack(fill="both", expand=True)
+    #     self.canvas = canvas
 
 
 if __name__ == "__main__":

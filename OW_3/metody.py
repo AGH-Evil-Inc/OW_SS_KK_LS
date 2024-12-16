@@ -170,13 +170,17 @@ def UTAstar_continuous(values, reference_points, lambda_param=1, use_polynomial=
     # Optymalizacja
     result = minimize(objective_function, initial_guess, bounds=constraints, method='SLSQP')
 
+    # Wartości użyteczności dla punktów wejściowych
+    utility_values = -np.sum(UTA_function_continuous(values, reference_points, lambda_param=lambda_param, use_polynomial=use_polynomial), axis=1)
+
     if result.success:
         best_solution = result.x
         best_utility = -result.fun  # Odpowiada maksymalnej użyteczności
         best_utility_vals = UTA_function_continuous([best_solution], reference_points, lambda_param=lambda_param, use_polynomial=use_polynomial)
-        return best_solution, best_utility, best_utility_vals
+        return best_solution, best_utility, utility_values, best_utility_vals
     else:
         raise ValueError("Optymalizacja nie powiodła się.")
+
         
 
 # Funkcja do wyznaczania funkcji użyteczności dla wersji dyskretnej
